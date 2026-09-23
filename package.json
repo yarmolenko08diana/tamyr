@@ -1,0 +1,16 @@
+{
+  "name": "tamyr",
+  "version": "0.1.0",
+  "description": "Tamyr: доказательство, что городской саженец выжил, и причина, если погиб. VENTUREHACK 2026, трек 3 Open Innovation.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "test": "node --test test/*.test.mjs",
+    "eval": "node scripts/eval-engine.mjs",
+    "data": "node scripts/generate-demo-data.mjs",
+    "weather": "node scripts/fetch-weather.mjs"
+  },
+  "engines": { "node": ">=18" },
+  "license": "MIT"
+}

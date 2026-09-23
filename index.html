@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tamyr: доказательство, что дерево выжило</title>
+  <meta name="description" content="Tamyr связывает каждый саженец с датчиком, снимком со спутника и фото горожанина и устанавливает причину гибели. VENTUREHACK 2026, трек 3 Open Innovation.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%233DDC84'/><path d='M16 7v18M16 14l-5-4M16 18l5-4' stroke='%230B1110' stroke-width='3' stroke-linecap='round'/></svg>">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-name">Tamyr</span>
+    </a>
+    <span class="pill" id="city-pill">Астана</span>
+    <nav class="nav">
+      <a href="#/" data-route="map">Карта</a>
+      <a href="#/report" data-route="report">Акт для акимата</a>
+      <a href="#/about" data-route="about">О проекте</a>
+    </nav>
+    <span class="spacer"></span>
+    <span class="pill pill-warn" id="data-pill" title="Данные сгенерированы симулятором, см. README">Демо-данные</span>
+    <span class="pill pill-track">VENTUREHACK · Трек 3 · Open Innovation</span>
+  </header>
+
+  <main id="view-map" class="view map-view">
+    <aside class="sidebar">
+      <section class="panel">
+        <h2 class="panel-title">Сводка по району</h2>
+        <div class="kpis" id="kpis"></div>
+      </section>
+      <section class="panel">
+        <h2 class="panel-title">Почему погибли саженцы</h2>
+        <div id="causes"></div>
+      </section>
+      <section class="panel">
+        <h2 class="panel-title">Требует внимания <span class="count" id="alerts-count"></span></h2>
+        <div id="alerts"></div>
+      </section>
+      <section class="panel">
+        <h2 class="panel-title">Слои</h2>
+        <label class="toggle"><input type="checkbox" id="layer-trees" checked> Саженцы</label>
+        <label class="toggle"><input type="checkbox" id="layer-ndvi" checked> NDVI участков (Sentinel-2)</label>
+        <div class="legend" id="legend"></div>
+      </section>
+      <section class="panel">
+        <h2 class="panel-title">Данные</h2>
+        <label class="btn btn-ghost file-btn">Импорт CSV датчика
+          <input type="file" id="sensor-csv" accept=".csv,text/csv" hidden>
+        </label>
+        <p class="hint" id="sensor-import-status">Формат: plot_id,date,moisture. Так подключается ESP32 из папки firmware.</p>
+      </section>
+    </aside>
+    <div class="map-wrap">
+      <div id="map" role="application" aria-label="Карта саженцев"></div>
+      <div class="map-caption" id="map-caption"></div>
+    </div>
+    <aside class="detail" id="detail" aria-live="polite"></aside>
+  </main>
+
+  <main id="view-tree" class="view page-view" hidden></main>
+  <main id="view-report" class="view page-view" hidden></main>
+  <main id="view-about" class="view page-view" hidden></main>
+
+  <dialog id="photo-dialog" class="dialog"></dialog>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="vendor/exifr/lite.umd.js"></script>
+  <script src="vendor/qrcode/qrcode.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

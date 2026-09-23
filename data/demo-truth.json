@@ -1,0 +1,386 @@
+{
+ "AST-26-0101": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0102": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0103": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0104": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0105": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0106": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0107": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0108": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0109": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0110": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0111": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0112": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0201": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0202": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0203": {
+  "died": "2026-08-01",
+  "cause": "drought"
+ },
+ "AST-26-0204": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0205": {
+  "died": "2026-08-03",
+  "cause": "drought"
+ },
+ "AST-26-0206": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0207": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0208": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0209": {
+  "died": "2026-08-03",
+  "cause": "drought"
+ },
+ "AST-26-0210": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0211": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0212": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0301": {
+  "died": "2026-06-08",
+  "cause": "no_watering"
+ },
+ "AST-26-0302": {
+  "died": "2026-06-11",
+  "cause": "no_watering"
+ },
+ "AST-26-0303": {
+  "died": "2026-06-09",
+  "cause": "no_watering"
+ },
+ "AST-26-0304": {
+  "died": "2026-06-10",
+  "cause": "no_watering"
+ },
+ "AST-26-0305": {
+  "died": "2026-06-09",
+  "cause": "no_watering"
+ },
+ "AST-26-0306": {
+  "died": "2026-06-04",
+  "cause": "no_watering"
+ },
+ "AST-26-0307": {
+  "died": "2026-06-08",
+  "cause": "no_watering"
+ },
+ "AST-26-0308": {
+  "died": "2026-06-09",
+  "cause": "no_watering"
+ },
+ "AST-26-0309": {
+  "died": "2026-06-05",
+  "cause": "no_watering"
+ },
+ "AST-26-0310": {
+  "died": "2026-06-04",
+  "cause": "no_watering"
+ },
+ "AST-26-0311": {
+  "died": "2026-06-09",
+  "cause": "no_watering"
+ },
+ "AST-26-0312": {
+  "died": "2026-06-02",
+  "cause": "no_watering"
+ },
+ "AST-26-0401": {
+  "died": "2026-07-28",
+  "cause": "drought"
+ },
+ "AST-26-0402": {
+  "died": "2026-07-25",
+  "cause": "drought"
+ },
+ "AST-26-0403": {
+  "died": "2026-07-25",
+  "cause": "drought"
+ },
+ "AST-26-0404": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0405": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0406": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0407": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0408": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0409": {
+  "died": "2026-07-27",
+  "cause": "drought"
+ },
+ "AST-26-0410": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0411": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0412": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0501": {
+  "died": "2026-05-27",
+  "cause": "bad_material"
+ },
+ "AST-26-0502": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0503": {
+  "died": "2026-05-18",
+  "cause": "bad_material"
+ },
+ "AST-26-0504": {
+  "died": "2026-05-08",
+  "cause": "bad_material"
+ },
+ "AST-26-0505": {
+  "died": "2026-05-20",
+  "cause": "bad_material"
+ },
+ "AST-26-0506": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0507": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0508": {
+  "died": "2026-06-08",
+  "cause": "bad_material"
+ },
+ "AST-26-0509": {
+  "died": "2026-05-10",
+  "cause": "bad_material"
+ },
+ "AST-26-0510": {
+  "died": "2026-05-08",
+  "cause": "bad_material"
+ },
+ "AST-26-0511": {
+  "died": "2026-05-23",
+  "cause": "bad_material"
+ },
+ "AST-26-0512": {
+  "died": "2026-06-03",
+  "cause": "bad_material"
+ },
+ "AST-26-0601": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0602": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0603": {
+  "died": "2026-05-15",
+  "cause": "bad_material"
+ },
+ "AST-26-0604": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0605": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0606": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0607": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0608": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0609": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0610": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0611": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0612": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0701": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0702": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0703": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0704": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0705": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0706": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0707": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0708": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0709": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0710": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0711": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0712": {
+  "died": null,
+  "cause": null
+ },
+ "AST-26-0801": {
+  "died": "2026-07-15",
+  "cause": "no_watering"
+ },
+ "AST-26-0802": {
+  "died": "2026-07-16",
+  "cause": "no_watering"
+ },
+ "AST-26-0803": {
+  "died": "2026-07-12",
+  "cause": "no_watering"
+ },
+ "AST-26-0804": {
+  "died": "2026-07-18",
+  "cause": "no_watering"
+ },
+ "AST-26-0805": {
+  "died": "2026-07-17",
+  "cause": "no_watering"
+ },
+ "AST-26-0806": {
+  "died": "2026-07-17",
+  "cause": "no_watering"
+ },
+ "AST-26-0807": {
+  "died": "2026-07-13",
+  "cause": "no_watering"
+ },
+ "AST-26-0808": {
+  "died": "2026-07-20",
+  "cause": "no_watering"
+ },
+ "AST-26-0809": {
+  "died": "2026-07-19",
+  "cause": "no_watering"
+ },
+ "AST-26-0810": {
+  "died": "2026-07-17",
+  "cause": "no_watering"
+ },
+ "AST-26-0811": {
+  "died": "2026-07-13",
+  "cause": "no_watering"
+ },
+ "AST-26-0812": {
+  "died": "2026-07-15",
+  "cause": "no_watering"
+ }
+}
