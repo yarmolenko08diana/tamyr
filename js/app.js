@@ -3,8 +3,8 @@
 import { createEngine, CAUSES, WILT, WINDOW } from './engine.js';
 import { moistureChart, ndviChart } from './charts.js';
 import { checkPhoto } from './photo.js';
-import { renderReport } from './report.js';
-import { fmtDate, fmtDateFull } from './dates.js';
+import { renderReport, setReportContractor } from './report.js';
+import { addDays, daysBetween, fmtDate, fmtDateFull } from './dates.js';
 
 export const CAUSE_COLOR = {
   alive: '#3ddc84',
@@ -24,7 +24,22 @@ const store = {
   },
 };
 
+const PREFS = 'tamyr.prefs';
+const prefs = {
+  load() {
+    try { return JSON.parse(localStorage.getItem(PREFS)) || {}; } catch { return {}; }
+  },
+  save(data) {
+    try { localStorage.setItem(PREFS, JSON.stringify({ ...prefs.load(), ...data })); } catch { /* приватный режим */ }
+  },
+};
+
 const state = {
+  asOf: null, // дата на шкале времени
+  filter: { status: 'all', contractor: 'all' },
+  layers: { trees: true, ndvi: true },
+  basemap: prefs.load().basemap === 'satellite' ? 'satellite' : 'scheme',
+  selectedPlot: null,
   district: null,
   series: null,
   engine: null,
@@ -67,89 +82,341 @@ function rebuild() {
 const plotOf = (id) => state.district.plots.find((p) => p.id === id);
 const contractorOf = (id) => state.district.contractors.find((c) => c.id === id);
 const batchOf = (id) => state.district.batches.find((b) => b.id === id);
-const colorOf = (d) => (d.dead ? CAUSE_COLOR[d.cause] : CAUSE_COLOR.alive);
 const today = () => state.district.meta.today;
 
 // ---------- карта ----------
 
-let map, treeLayer, ndviLayer, districtBounds;
+let map, treeLayer, ndviLayer, labelLayer, highlightLayer, districtBounds;
 let fitted = false;
 const markers = new Map();
+const baseLayers = {};
 
+const BASEMAPS = {
+  scheme: {
+    label: 'Схема',
+    url: 'https://{s}.basemap.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    options: { maxZoom: 20, subdomains: 'abcd', attribution: '© OpenStreetMap, © CARTO' },
+  },
+  satellite: {
+    label: 'Спутник',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    options: { maxZoom: 19, attribution: 'Снимки © Esri, Maxar, Earthstar Geographics' },
+  },
+};
+
+// Цвет участка по NDVI: от бурого (зелени нет) до насыщенно-зелёного.
+const NDVI_STOPS = [
+  [0.15, [138, 90, 43]],
+  [0.3, [179, 155, 58]],
+  [0.45, [95, 174, 90]],
+  [0.6, [47, 158, 91]],
+];
 function ndviColor(v) {
-  if (v == null) return '#2a3c36';
-  if (v < 0.25) return '#8a5a2b';
-  if (v < 0.35) return '#b39b3a';
-  if (v < 0.45) return '#5fae5a';
-  return '#2f9e5b';
+  if (v == null) return '#3a4c45';
+  if (v <= NDVI_STOPS[0][0]) return `rgb(${NDVI_STOPS[0][1]})`;
+  for (let i = 1; i < NDVI_STOPS.length; i++) {
+    const [x1, c1] = NDVI_STOPS[i];
+    const [x0, c0] = NDVI_STOPS[i - 1];
+    if (v <= x1) {
+      const k = (v - x0) / (x1 - x0);
+      return `rgb(${c0.map((c, j) => Math.round(c + (c1[j] - c) * k))})`;
+    }
+  }
+  return `rgb(${NDVI_STOPS[NDVI_STOPS.length - 1][1]})`;
 }
 
-function latestNdvi(pid) {
-  const rows = (state.series.ndvi[pid] || []).filter((n) => n.v != null);
+function ndviAt(pid, date) {
+  const rows = (state.series.ndvi[pid] || []).filter((n) => n.v != null && n.date <= date);
   return rows[rows.length - 1] || null;
+}
+
+function moistureAt(pid, date) {
+  const rows = (state.series.moisture[pid] || []).filter((m) => m.v != null && m.date <= date);
+  return rows[rows.length - 1] || null;
+}
+
+// Статус саженца на выбранную дату шкалы времени.
+function statusAt(d, date) {
+  if (d.tree.planted > date) return null;
+  return d.dead && d.observed <= date ? d.cause : 'alive';
+}
+
+const inFilter = (d, st) => {
+  if (!st) return false;
+  const f = state.filter;
+  if (f.contractor !== 'all' && plotOf(d.tree.plot).contractor !== f.contractor) return false;
+  if (f.status === 'all') return true;
+  if (f.status === 'dead') return st !== 'alive';
+  return st === f.status;
+};
+
+function markerRadius() {
+  const z = map.getZoom();
+  return z >= 18 ? 8 : z >= 17 ? 6.5 : z >= 16 ? 5.5 : z >= 15 ? 4.5 : 3.5;
 }
 
 function initMap() {
   const plots = state.district.plots;
-  map = L.map('map', { zoomControl: true, attributionControl: true });
-  L.tileLayer('https://{s}.basemap.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 20,
-    attribution: '© OpenStreetMap, © CARTO',
-  }).addTo(map);
+  map = L.map('map', { zoomControl: false, attributionControl: true, zoomSnap: 0.25 });
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+  for (const [key, b] of Object.entries(BASEMAPS)) baseLayers[key] = L.tileLayer(b.url, b.options);
+  baseLayers[state.basemap].addTo(map);
   ndviLayer = L.layerGroup().addTo(map);
+  highlightLayer = L.layerGroup().addTo(map);
+  labelLayer = L.layerGroup().addTo(map);
   treeLayer = L.layerGroup().addTo(map);
-  districtBounds = L.latLngBounds(plots.flatMap((p) => p.polygon)).pad(0.08);
-  map.fitBounds(districtBounds);
+  districtBounds = L.latLngBounds(plots.flatMap((p) => p.polygon)).pad(0.04);
+  fitDistrict(false);
+  map.on('zoomend', () => {
+    for (const m of markers.values()) m.setRadius(markerRadius() + (m.options.dead ? 1.5 : 0));
+    toggleLabels();
+  });
+  bindMapControls();
   drawMap();
-  $('#layer-trees').addEventListener('change', (e) => (e.target.checked ? treeLayer.addTo(map) : treeLayer.remove()));
-  $('#layer-ndvi').addEventListener('change', (e) => (e.target.checked ? ndviLayer.addTo(map) : ndviLayer.remove()));
+}
+
+// Район целиком, с учётом панелей поверх карты.
+function fitDistrict(animate = true) {
+  const mobile = window.matchMedia('(max-width: 720px)').matches;
+  const opts = { paddingTopLeft: [mobile ? 12 : 250, 100], paddingBottomRight: [12, 90], animate };
+  if (animate) map.flyToBounds(districtBounds, { ...opts, duration: 0.6 });
+  else map.fitBounds(districtBounds, opts);
+}
+
+function toggleLabels() {
+  const show = map.getZoom() >= 16.5;
+  if (show && !map.hasLayer(labelLayer)) labelLayer.addTo(map);
+  if (!show && map.hasLayer(labelLayer)) labelLayer.remove();
 }
 
 function drawMap() {
+  const date = state.asOf;
   ndviLayer.clearLayers();
+  labelLayer.clearLayers();
   treeLayer.clearLayers();
   markers.clear();
   for (const p of state.district.plots) {
-    const n = latestNdvi(p.id);
-    const dead = state.district.trees.filter((t) => t.plot === p.id && state.diag.get(t.id).dead).length;
-    const total = state.district.trees.filter((t) => t.plot === p.id).length;
-    L.polygon(p.polygon, { color: '#3a4c45', weight: 1, fillColor: ndviColor(n?.v), fillOpacity: 0.45 })
-      .bindPopup(
-        `<b>${esc(p.name)}</b><br>${esc(contractorOf(p.contractor).name)}<br>` +
-          `Датчик ${p.sensor} · NDVI ${n ? n.v.toFixed(2) : '—'} (${n ? fmtDate(n.date) : 'нет снимка'})<br>` +
-          `Погибло ${dead} из ${total}`,
-      )
+    const n = ndviAt(p.id, date);
+    const trees = state.district.trees.filter((t) => t.plot === p.id);
+    const alive = trees.filter((t) => statusAt(state.diag.get(t.id), date) === 'alive').length;
+    const dim = state.filter.contractor !== 'all' && p.contractor !== state.filter.contractor;
+    L.polygon(p.polygon, {
+      color: '#e9f1ec',
+      opacity: dim ? 0.15 : 0.45,
+      weight: 1,
+      fillColor: ndviColor(n?.v),
+      fillOpacity: dim ? 0.12 : state.layers.ndvi ? 0.55 : 0,
+    })
+      .bindTooltip(`${esc(p.name)} · NDVI ${n ? n.v.toFixed(2) : '—'}`, { sticky: true })
+      .on('click', () => selectPlot(p.id))
       .addTo(ndviLayer);
+    L.marker(p.label || p.center, {
+      interactive: false,
+      icon: L.divIcon({
+        className: 'plot-label',
+        html: `<span>${esc(p.name.replace('Нуржол, ', ''))}</span><b>${alive}/${trees.length} живы</b>`,
+        iconSize: null,
+      }),
+    }).addTo(labelLayer);
   }
+  let shown = 0;
   for (const t of state.district.trees) {
     const d = state.diag.get(t.id);
+    const st = statusAt(d, date);
+    if (!state.layers.trees || !inFilter(d, st)) continue;
+    shown++;
+    const dead = st !== 'alive';
     const m = L.circleMarker([t.lat, t.lon], {
-      radius: 6,
-      color: '#0b1110',
-      weight: 1.5,
-      fillColor: colorOf(d),
+      radius: markerRadius() + (dead ? 1.5 : 0),
+      color: dead ? '#ffffff' : '#0b1110',
+      weight: dead ? 1.2 : 1,
+      fillColor: CAUSE_COLOR[st],
       fillOpacity: 1,
+      dead,
     })
-      .bindTooltip(`${t.id} · ${t.species}${d.dead ? ` · ${d.label}` : ''}`)
+      .bindTooltip(`<b>${t.id}</b> · ${esc(t.species)}<br>${dead ? CAUSES[st].label : 'Жив'}`)
       .on('click', () => selectTree(t.id))
       .addTo(treeLayer);
     markers.set(t.id, m);
   }
+  toggleLabels();
   highlightSelected();
+  renderMapChrome(shown);
 }
 
 function highlightSelected() {
-  for (const [id, m] of markers) m.setStyle({ radius: id === state.selected ? 9 : 6, color: id === state.selected ? '#ffffff' : '#0b1110' });
+  highlightLayer.clearLayers();
+  const plotId = state.selectedPlot || (state.selected && state.diag.get(state.selected).tree.plot);
+  if (plotId) {
+    L.polygon(plotOf(plotId).polygon, { color: '#8bf0b5', weight: 2, fill: false, dashArray: '4 3', interactive: false })
+      .addTo(highlightLayer);
+  }
+  const m = state.selected && markers.get(state.selected);
+  if (m) {
+    L.circleMarker(m.getLatLng(), { radius: markerRadius() + 7, color: '#ffffff', weight: 2, fill: false, interactive: false })
+      .addTo(highlightLayer);
+    m.bringToFront();
+  }
+}
+
+// Легенда, счётчики фильтров и шкала времени.
+function renderMapChrome(shown) {
+  const date = state.asOf;
+  const all = [...state.diag.values()].filter((d) => {
+    const st = statusAt(d, date);
+    return st && (state.filter.contractor === 'all' || plotOf(d.tree.plot).contractor === state.filter.contractor);
+  });
+  const count = (k) => all.filter((d) => {
+    const st = statusAt(d, date);
+    return k === 'all' ? true : k === 'dead' ? st !== 'alive' : st === k;
+  }).length;
+  for (const b of document.querySelectorAll('#status-chips [data-status]')) {
+    const k = b.dataset.status;
+    b.classList.toggle('active', state.filter.status === k);
+    b.querySelector('em').textContent = count(k);
+  }
+  $('#map-count').textContent = `На карте ${shown} из ${state.district.trees.length}`;
+
+  const w = state.series.weather.find((x) => x.date === date);
+  const heat = w && w.tmax >= 32;
+  $('#time-date').textContent = fmtDateFull(date);
+  $('#time-weather').innerHTML = w
+    ? `<span class="${heat ? 'warn' : ''}">${heat ? 'Жара ' : ''}${Math.round(w.tmax)}°C</span> · осадки ${w.precip} мм`
+    : '';
+  const slider = $('#time-slider');
+  slider.value = daysBetween(state.district.meta.start, date);
+  $('#time-today').hidden = date === today();
+  for (const b of document.querySelectorAll('#basemap-switch button')) b.classList.toggle('active', b.dataset.base === state.basemap);
+}
+
+function setAsOf(date, { quiet = false } = {}) {
+  state.asOf = date;
+  drawMap();
+  renderSidebar();
+  if (!quiet) renderDetail();
+}
+
+let playTimer = null;
+function togglePlay(force) {
+  const btn = $('#time-play');
+  const playing = force ?? !playTimer;
+  if (!playing) {
+    clearInterval(playTimer);
+    playTimer = null;
+    btn.textContent = '▶';
+    btn.setAttribute('aria-label', 'Проиграть сезон');
+    renderDetail();
+    return;
+  }
+  if (state.asOf >= today()) state.asOf = state.district.meta.start;
+  btn.textContent = '❚❚';
+  btn.setAttribute('aria-label', 'Пауза');
+  playTimer = setInterval(() => {
+    const next = addDays(state.asOf, 2);
+    if (next >= today()) {
+      setAsOf(today(), { quiet: true });
+      togglePlay(false);
+    } else {
+      setAsOf(next, { quiet: true });
+    }
+  }, 120);
+}
+
+function bindMapControls() {
+  const start = state.district.meta.start;
+  const slider = $('#time-slider');
+  slider.max = daysBetween(start, today());
+  slider.addEventListener('input', () => {
+    if (playTimer) togglePlay(false);
+    setAsOf(addDays(start, +slider.value), { quiet: true });
+  });
+  slider.addEventListener('change', () => renderDetail());
+  $('#time-play').addEventListener('click', () => togglePlay());
+  $('#time-today').addEventListener('click', () => {
+    if (playTimer) togglePlay(false);
+    setAsOf(today());
+  });
+
+  $('#status-chips').innerHTML = [
+    ['all', 'Все'],
+    ['alive', 'Живые'],
+    ['dead', 'Погибшие'],
+    ['no_watering', 'Нет полива'],
+    ['drought', CAUSES.drought.label],
+    ['bad_material', 'Плохой материал'],
+  ]
+    .map(([k, l]) => `<button class="chip" data-status="${k}">${k !== 'all' && k !== 'dead' ? `<i class="dot" style="background:${CAUSE_COLOR[k]}"></i>` : ''}${l} <em></em></button>`)
+    .join('');
+  for (const b of document.querySelectorAll('#status-chips [data-status]')) {
+    b.addEventListener('click', () => {
+      state.filter.status = b.dataset.status;
+      drawMap();
+    });
+  }
+  const sel = $('#contractor-filter');
+  sel.innerHTML = '<option value="all">Все подрядчики</option>' +
+    state.district.contractors.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  sel.addEventListener('change', () => {
+    state.filter.contractor = sel.value;
+    drawMap();
+    renderSidebar();
+  });
+
+  const search = $('#tree-search');
+  $('#tree-ids').innerHTML = state.district.trees.map((t) => `<option value="${t.id}">${esc(t.species)}</option>`).join('');
+  search.addEventListener('change', () => {
+    const id = search.value.trim().toUpperCase();
+    if (state.diag.has(id)) {
+      state.filter.status = 'all';
+      drawMap();
+      selectTree(id, true);
+      search.value = '';
+    }
+  });
+
+  for (const b of document.querySelectorAll('#basemap-switch button')) {
+    b.addEventListener('click', () => {
+      baseLayers[state.basemap].remove();
+      state.basemap = b.dataset.base;
+      baseLayers[state.basemap].addTo(map).bringToBack();
+      prefs.save({ basemap: state.basemap });
+      renderMapChrome(markers.size);
+    });
+  }
+  $('#home-view').addEventListener('click', () => fitDistrict());
+  $('#layer-trees').addEventListener('change', (e) => {
+    state.layers.trees = e.target.checked;
+    drawMap();
+  });
+  $('#layer-ndvi').addEventListener('change', (e) => {
+    state.layers.ndvi = e.target.checked;
+    drawMap();
+  });
+  $('#legend-causes').innerHTML = [
+    ['alive', 'Жив'],
+    ['no_watering', CAUSES.no_watering.label],
+    ['drought', CAUSES.drought.label],
+    ['bad_material', CAUSES.bad_material.label],
+    ['unknown', CAUSES.unknown.label],
+  ]
+    .map(([k, l]) => `<span><i class="dot" style="background:${CAUSE_COLOR[k]}"></i>${l}</span>`)
+    .join('');
+  $('#ndvi-scale').style.background = `linear-gradient(90deg, ${[0.15, 0.3, 0.45, 0.6].map(ndviColor).join(', ')})`;
 }
 
 // ---------- боковая панель ----------
 
 function renderSidebar() {
-  const all = [...state.diag.values()];
-  const dead = all.filter((d) => d.dead);
-  const survival = 1 - dead.length / all.length;
+  const date = state.asOf;
+  const all = [...state.diag.values()].filter((d) => {
+    if (!statusAt(d, date)) return false;
+    return state.filter.contractor === 'all' || plotOf(d.tree.plot).contractor === state.filter.contractor;
+  });
+  const dead = all.filter((d) => statusAt(d, date) !== 'alive');
+  const survival = all.length ? 1 - dead.length / all.length : 1;
   $('#city-pill').textContent = `${state.district.meta.city} · ${state.district.meta.district}`;
   $('#data-pill').hidden = state.district.meta.dataSource !== 'synthetic';
+  $('#summary-title').textContent = date === today() ? 'Сводка по району' : `Сводка на ${fmtDate(date)}`;
   $('#kpis').innerHTML = `
     <div class="kpi"><b>${all.length}</b><span>саженцев</span></div>
     <div class="kpi"><b class="${survival < 0.6 ? 'bad' : 'ok'}">${pct(survival)}</b><span>приживаемость, норматив 60%</span></div>
@@ -162,38 +429,28 @@ function renderSidebar() {
     ? Object.keys(CAUSES)
         .filter((c) => counts[c])
         .map((c) => `
-      <div class="bar-row" title="${esc(CAUSES[c].advice)}">
+      <button class="bar-row" data-cause="${c}" title="Показать на карте">
         <div class="bar-label"><span><i class="dot" style="background:${CAUSE_COLOR[c]}"></i>${CAUSES[c].label}</span><b>${counts[c]}</b></div>
         <div class="bar"><i style="width:${(100 * counts[c]) / dead.length}%;background:${CAUSE_COLOR[c]}"></i></div>
-      </div>`)
+      </button>`)
         .join('')
     : '<p class="empty">Погибших саженцев нет.</p>';
+  for (const b of document.querySelectorAll('#causes [data-cause]')) {
+    b.addEventListener('click', () => {
+      state.filter.status = b.dataset.cause;
+      drawMap();
+    });
+  }
 
-  const alerts = state.engine.plotAlerts(today());
+  const alerts = state.engine.plotAlerts(date);
   $('#alerts-count').textContent = alerts.length || '';
   $('#alerts').innerHTML = alerts.length
     ? alerts
         .map((a) => `<button class="alert" data-plot="${a.plot.id}">Наряд на полив: ${esc(a.plot.name)}
           <small>Влажность ${a.moisture ?? '—'}% ниже порога ${WILT}% уже ${a.dryDays} дня · ${esc(contractorOf(a.plot.contractor).name)}</small></button>`)
         .join('')
-    : '<p class="empty">Все участки в норме на ' + fmtDate(today()) + '.</p>';
-  for (const b of document.querySelectorAll('#alerts .alert')) {
-    b.addEventListener('click', () => {
-      const p = plotOf(b.dataset.plot);
-      map.fitBounds(L.latLngBounds(p.polygon).pad(0.6));
-    });
-  }
-
-  $('#legend').innerHTML = [
-    ['alive', 'Жив'],
-    ['no_watering', CAUSES.no_watering.label],
-    ['drought', CAUSES.drought.label],
-    ['bad_material', CAUSES.bad_material.label],
-    ['unknown', CAUSES.unknown.label],
-  ]
-    .map(([k, l]) => `<span><i class="dot" style="background:${CAUSE_COLOR[k]}"></i>${l}</span>`)
-    .join('');
-  $('#map-caption').textContent = `Данные на ${fmtDateFull(today())} · участки окрашены по последнему NDVI`;
+    : '<p class="empty">Все участки в норме на ' + fmtDate(date) + '.</p>';
+  for (const b of document.querySelectorAll('#alerts .alert')) b.addEventListener('click', () => selectPlot(b.dataset.plot, true));
 }
 
 // ---------- карточка саженца ----------
@@ -317,19 +574,86 @@ function treeCardHtml(id, { full = false } = {}) {
       .join('')}</ul>`;
 }
 
+function plotCardHtml(pid) {
+  const p = plotOf(pid);
+  const date = state.asOf;
+  const trees = state.district.trees.filter((t) => t.plot === pid);
+  const statuses = trees.map((t) => ({ t, st: statusAt(state.diag.get(t.id), date) }));
+  const alive = statuses.filter((x) => x.st === 'alive').length;
+  const survival = alive / trees.length;
+  const m = moistureAt(pid, date);
+  const n = ndviAt(pid, date);
+  const checks = state.engine.wateringChecks(pid, state.district.meta.start, date);
+  const conf = checks.filter((c) => c.result === 'confirmed').length;
+  const unconf = checks.filter((c) => c.result === 'unconfirmed').length;
+  const causes = {};
+  for (const x of statuses) if (x.st && x.st !== 'alive') causes[x.st] = (causes[x.st] || 0) + 1;
+  return `
+    <div class="card-head">
+      <div><h2>${esc(p.name)}</h2><div class="sub">${esc(contractorOf(p.contractor).name)} · датчик ${esc(p.sensor)}</div></div>
+      <span class="status ${survival < 0.6 ? 'status-dead' : 'status-alive'}">${pct(survival)} живы</span>
+    </div>
+    <div class="plot-stats">
+      <div class="kpi"><b class="${m && m.v < WILT ? 'bad' : ''}">${m ? m.v + '%' : '—'}</b><span>влажность почвы${m && m.v < WILT ? ', ниже порога' : ''}</span></div>
+      <div class="kpi"><b>${n ? n.v.toFixed(2) : '—'}</b><span>NDVI, снимок ${n ? fmtDate(n.date) : '—'}</span></div>
+      <div class="kpi"><b>${checks.length}</b><span>поливов заявлено</span></div>
+      <div class="kpi"><b class="${unconf > conf ? 'bad' : 'ok'}">${conf} / ${unconf}</b><span>подтверждено / нет</span></div>
+    </div>
+    ${Object.keys(causes).length ? `<p class="plot-causes">${Object.entries(causes)
+      .map(([c, k]) => `<span><i class="dot" style="background:${CAUSE_COLOR[c]}"></i>${CAUSES[c].label}: ${k}</span>`)
+      .join('')}</p>` : ''}
+    <div class="section-title">Саженцы участка</div>
+    <div class="tree-grid">${statuses
+      .map(({ t, st }) => `<button class="tree-chip" data-tree="${t.id}" title="${esc(t.species)} · ${st === 'alive' ? 'жив' : CAUSES[st].label}">
+        <i class="dot" style="background:${CAUSE_COLOR[st]}"></i>${esc(t.id.slice(-4))}</button>`)
+      .join('')}</div>
+    <div class="section-title">Влажность почвы и поливы за сезон</div>
+    ${moistureChart({
+      moisture: state.series.moisture[pid] || [],
+      weather: state.series.weather,
+      checks,
+      from: state.district.meta.start,
+      to: today(),
+      window: null,
+      death: date !== today() ? date : null,
+      wilt: WILT,
+    })}
+    <div class="section-title">NDVI участка (Sentinel-2)</div>
+    ${ndviChart({ ndvi: state.series.ndvi[pid] || [], from: state.district.meta.start, to: today(), death: date !== today() ? date : null })}
+    <div class="row no-print" style="margin-top:12px">
+      <a class="btn" href="#/report" data-report="${esc(p.contractor)}">Акт по подрядчику</a>
+      <button class="btn btn-ghost" data-action="clear">Весь район</button>
+    </div>`;
+}
+
 function renderDetail() {
   const el = $('#detail');
-  if (!state.selected) {
+  if (state.selectedPlot) {
+    el.innerHTML = `<div class="panel">${plotCardHtml(state.selectedPlot)}</div>`;
+  } else if (state.selected) {
+    const t = state.diag.get(state.selected).tree;
+    el.innerHTML = `<div class="panel"><button class="link-btn no-print" data-plot="${t.plot}">← ${esc(plotOf(t.plot).name)}</button>${treeCardHtml(state.selected)}</div>`;
+  } else {
     const deadList = [...state.diag.values()].filter((d) => d.dead).slice(0, 6);
     el.innerHTML = `<div class="panel"><h2 class="panel-title">Карточка саженца</h2>
-      <p class="empty">Нажмите на точку на карте, чтобы увидеть паспорт саженца, историю событий и причину гибели.</p>
+      <p class="empty">Нажмите на точку на карте, чтобы открыть паспорт саженца, или на участок, чтобы увидеть его датчик и поливы.
+      Шкала времени под картой проигрывает сезон.</p>
       <div class="section-title">Например, погибшие</div>
       ${deadList.map((d) => `<button class="alert" style="background:var(--card-2);border-color:var(--border)" data-tree="${d.tree.id}">${esc(d.tree.id)} · ${esc(d.tree.species)}<small style="color:${CAUSE_COLOR[d.cause]}">${d.label}</small></button>`).join('')}
     </div>`;
-    for (const b of el.querySelectorAll('[data-tree]')) b.addEventListener('click', () => selectTree(b.dataset.tree, true));
-    return;
   }
-  el.innerHTML = `<div class="panel">${treeCardHtml(state.selected)}</div>`;
+  for (const b of el.querySelectorAll('[data-tree]')) b.addEventListener('click', () => selectTree(b.dataset.tree, true));
+  for (const b of el.querySelectorAll('[data-plot]')) b.addEventListener('click', () => selectPlot(b.dataset.plot));
+  for (const b of el.querySelectorAll('[data-report]')) b.addEventListener('click', () => setReportContractor(b.dataset.report));
+  for (const b of el.querySelectorAll('[data-action="clear"]')) {
+    b.addEventListener('click', () => {
+      state.selected = null;
+      state.selectedPlot = null;
+      highlightSelected();
+      renderDetail();
+      fitDistrict();
+    });
+  }
   bindCardActions(el);
 }
 
@@ -339,10 +663,26 @@ function bindCardActions(root) {
 
 function selectTree(id, pan = false) {
   state.selected = id;
+  state.selectedPlot = null;
   highlightSelected();
   renderDetail();
   const t = state.diag.get(id).tree;
-  if (pan && !map.getBounds().contains([t.lat, t.lon])) map.panTo([t.lat, t.lon]);
+  if (pan) map.flyTo([t.lat, t.lon], Math.max(map.getZoom(), 17), { duration: 0.6 });
+  scrollDetailIntoView();
+}
+
+function selectPlot(id, fly = false) {
+  state.selectedPlot = id;
+  state.selected = null;
+  highlightSelected();
+  renderDetail();
+  if (fly) map.flyToBounds(L.latLngBounds(plotOf(id).polygon).pad(0.4), { duration: 0.6 });
+  scrollDetailIntoView();
+}
+
+// На телефоне карточка под картой: прокручиваем к ней.
+function scrollDetailIntoView() {
+  if (window.matchMedia('(max-width: 720px)').matches) $('#detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ---------- фото горожанина ----------
@@ -484,7 +824,7 @@ function route() {
     setTimeout(() => {
       map.invalidateSize();
       // Первый показ: подогнать карту под район, когда контейнер уже получил размер.
-      if (!fitted) map.fitBounds(districtBounds);
+      if (!fitted) fitDistrict(false);
       fitted = true;
     }, 0);
   }
@@ -501,6 +841,7 @@ function refresh() {
 
 async function main() {
   await loadData();
+  state.asOf = today();
   initMap();
   renderSidebar();
   renderDetail();

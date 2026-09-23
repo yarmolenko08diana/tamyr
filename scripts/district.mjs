@@ -27,10 +27,19 @@ export const CONTRACTORS = [
 ];
 
 const r6 = (x) => Math.round(x * 1e6) / 1e6;
+const M_LAT = 111320;
+
+// Точка в метрах (s вдоль u, t вдоль v) от origin → [lat, lon].
+function toLatLon({ origin, u, v }, s, t) {
+  const east = u[0] * s + v[0] * t;
+  const north = u[1] * s + v[1] * t;
+  const mLon = M_LAT * Math.cos((origin[0] * Math.PI) / 180);
+  return [r6(origin[0] + north / M_LAT), r6(origin[1] + east / mLon)];
+}
 
 // plotsSpec: [{ id, name, contractor, care, batches: [..], cause, lat, lon }]
 // cause — истинная причина гибели на участке (для оценки), care — как поливали.
-export function buildDistrict(r, { start, end, heatwave, plotsSpec, treesPerPlot = 12, badBatches = [] }) {
+export function buildDistrict(r, { start, end, heatwave, plotsSpec, treesPerPlot = 12, badBatches = [], districtName = 'Демо-район' }) {
   const weather = makeWeather(r, start, end, heatwave);
   const plots = [];
   const trees = [];
@@ -38,20 +47,24 @@ export function buildDistrict(r, { start, end, heatwave, plotsSpec, treesPerPlot
   const truth = {};
 
   plotsSpec.forEach((spec, pi) => {
-    const h = 0.0006, w = 0.0026;
-    const polygon = [
-      [r6(spec.lat), r6(spec.lon)],
-      [r6(spec.lat), r6(spec.lon + w)],
-      [r6(spec.lat - h), r6(spec.lon + w)],
-      [r6(spec.lat - h), r6(spec.lon)],
-    ];
+    // Участок — прямоугольник в локальной системе (метры вдоль u и поперёк v от точки origin).
+    // Без frame участок ставится по сторонам света от (lat, lon), как в тестовых сценариях.
+    const frame = spec.frame ?? {
+      origin: [spec.lat, spec.lon], u: [1, 0], v: [0, -1], along: [0, 180], across: [0, 67],
+    };
+    const at = (s, t) => toLatLon(frame, s, t);
+    const [s0, s1] = frame.along;
+    const [t0, t1] = frame.across;
+    const polygon = [at(s0, t0), at(s1, t0), at(s1, t1), at(s0, t1)];
     plots.push({
       id: spec.id,
       name: spec.name,
       contractor: spec.contractor,
       sensor: `S${String(pi + 1).padStart(2, '0')}`,
       polygon,
-      center: [r6(spec.lat - h / 2), r6(spec.lon + w / 2)],
+      center: at((s0 + s1) / 2, (t0 + t1) / 2),
+      // Подпись ставим снаружи участка, с дальней от оси бульвара стороны.
+      label: t0 >= 0 ? at((s0 + s1) / 2, t1 + 14) : at((s0 + s1) / 2, t0 - 14),
     });
     const sim = simulatePlot(r, weather, start, end, spec.care);
     series.moisture[spec.id] = sim.moisture;
@@ -70,8 +83,12 @@ export function buildDistrict(r, { start, end, heatwave, plotsSpec, treesPerPlot
         batch,
         planted,
         warranty: addDays(planted, 730),
-        lat: r6(spec.lat - h * (0.3 + 0.4 * row) + r.normal() * 0.00001),
-        lon: r6(spec.lon + (w * (col + 0.5)) / (treesPerPlot / 2) + r.normal() * 0.00001),
+        ...(() => {
+          const s = s0 + ((s1 - s0) * (col + 0.5)) / (treesPerPlot / 2) + r.normal() * 0.8;
+          const t = t0 + (t1 - t0) * (0.3 + 0.4 * row) + r.normal() * 0.8;
+          const [lat, lon] = at(s, t);
+          return { lat, lon };
+        })(),
       };
       let cause = null;
       let died = null;
@@ -98,7 +115,7 @@ export function buildDistrict(r, { start, end, heatwave, plotsSpec, treesPerPlot
     district: {
       meta: {
         city: 'Астана',
-        district: 'Демо-район',
+        district: districtName,
         start,
         today: end,
         dataSource: 'synthetic',

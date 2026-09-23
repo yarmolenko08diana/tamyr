@@ -29,7 +29,7 @@
   <main id="view-map" class="view map-view">
     <aside class="sidebar">
       <section class="panel">
-        <h2 class="panel-title">Сводка по району</h2>
+        <h2 class="panel-title" id="summary-title">Сводка по району</h2>
         <div class="kpis" id="kpis"></div>
       </section>
       <section class="panel">
@@ -41,12 +41,6 @@
         <div id="alerts"></div>
       </section>
       <section class="panel">
-        <h2 class="panel-title">Слои</h2>
-        <label class="toggle"><input type="checkbox" id="layer-trees" checked> Саженцы</label>
-        <label class="toggle"><input type="checkbox" id="layer-ndvi" checked> NDVI участков (Sentinel-2)</label>
-        <div class="legend" id="legend"></div>
-      </section>
-      <section class="panel">
         <h2 class="panel-title">Данные</h2>
         <label class="btn btn-ghost file-btn">Импорт CSV датчика
           <input type="file" id="sensor-csv" accept=".csv,text/csv" hidden>
@@ -56,7 +50,40 @@
     </aside>
     <div class="map-wrap">
       <div id="map" role="application" aria-label="Карта саженцев"></div>
-      <div class="map-caption" id="map-caption"></div>
+      <div class="map-top">
+        <div class="chips" id="status-chips" role="toolbar" aria-label="Фильтр по статусу"></div>
+        <div class="map-tools">
+          <select id="contractor-filter" aria-label="Подрядчик"></select>
+          <input id="tree-search" list="tree-ids" placeholder="Найти саженец: AST-26-…" aria-label="Поиск саженца">
+          <datalist id="tree-ids"></datalist>
+          <span class="spacer"></span>
+          <div class="seg" id="basemap-switch" role="group" aria-label="Подложка">
+            <button data-base="scheme">Схема</button>
+            <button data-base="satellite">Спутник</button>
+          </div>
+          <button class="icon-btn" id="home-view" title="Показать весь район" aria-label="Показать весь район">⌂</button>
+        </div>
+      </div>
+      <details class="map-legend" id="map-legend" open>
+        <summary>Легенда и слои</summary>
+        <div class="legend" id="legend-causes"></div>
+        <div class="ndvi-legend">
+          <span>NDVI участка</span>
+          <i id="ndvi-scale"></i>
+          <span class="ndvi-ticks"><em>0,15</em><em>0,6</em></span>
+        </div>
+        <label class="toggle"><input type="checkbox" id="layer-trees" checked> Саженцы</label>
+        <label class="toggle"><input type="checkbox" id="layer-ndvi" checked> Заливка NDVI</label>
+        <div class="hint" id="map-count"></div>
+      </details>
+      <div class="timebar">
+        <button class="play" id="time-play" aria-label="Проиграть сезон">▶</button>
+        <div class="time-main">
+          <div class="time-row"><b id="time-date"></b><span id="time-weather"></span>
+            <button class="link-btn" id="time-today" hidden>К сегодняшнему дню</button></div>
+          <input type="range" id="time-slider" min="0" value="0" aria-label="Дата">
+        </div>
+      </div>
     </div>
     <aside class="detail" id="detail" aria-live="polite"></aside>
   </main>

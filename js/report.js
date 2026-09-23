@@ -9,6 +9,10 @@ const money = (n) => new Intl.NumberFormat('ru-RU').format(Math.round(n));
 
 let filter = { contractor: 'all', cost: 0 };
 
+export function setReportContractor(id) {
+  filter.contractor = id;
+}
+
 export function renderReport(el, state, { CAUSE_COLOR }) {
   const { district } = state;
   const contractors = district.contractors;
