@@ -150,10 +150,13 @@ const inFilter = (d, st) => {
   return st === f.status;
 };
 
+// Радиус точки привязан к метрам на местности (~3 м), чтобы соседние саженцы
+// не сливались при обзоре района и становились крупнее при приближении.
 function markerRadius() {
-  const z = map.getZoom();
-  return z >= 18 ? 8 : z >= 17 ? 6.5 : z >= 16 ? 5.5 : z >= 15 ? 4.5 : 3.5;
+  const pxPerM = 256 * 2 ** map.getZoom() / (40075016 * Math.cos((map.getCenter().lat * Math.PI) / 180));
+  return Math.max(3, Math.min(8, 3.2 * pxPerM));
 }
+const deadExtra = () => (markerRadius() < 4 ? 0.8 : 1.5);
 
 function initMap() {
   const plots = state.district.plots;
@@ -168,7 +171,7 @@ function initMap() {
   districtBounds = L.latLngBounds(plots.flatMap((p) => p.polygon)).pad(0.04);
   fitDistrict(false);
   map.on('zoomend', () => {
-    for (const m of markers.values()) m.setRadius(markerRadius() + (m.options.dead ? 1.5 : 0));
+    for (const m of markers.values()) m.setRadius(markerRadius() + (m.options.dead ? deadExtra() : 0));
     toggleLabels();
   });
   bindMapControls();
@@ -227,7 +230,7 @@ function drawMap() {
     shown++;
     const dead = st !== 'alive';
     const m = L.circleMarker([t.lat, t.lon], {
-      radius: markerRadius() + (dead ? 1.5 : 0),
+      radius: markerRadius() + (dead ? deadExtra() : 0),
       color: dead ? '#ffffff' : '#0b1110',
       weight: dead ? 1.2 : 1,
       fillColor: CAUSE_COLOR[st],

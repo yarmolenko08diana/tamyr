@@ -29,6 +29,11 @@ export const CONTRACTORS = [
 const r6 = (x) => Math.round(x * 1e6) / 1e6;
 const M_LAT = 111320;
 
+const centroid = (pts) => [
+  r6(pts.reduce((a, p) => a + p[0], 0) / pts.length),
+  r6(pts.reduce((a, p) => a + p[1], 0) / pts.length),
+];
+
 // Точка в метрах (s вдоль u, t вдоль v) от origin → [lat, lon].
 function toLatLon({ origin, u, v }, s, t) {
   const east = u[0] * s + v[0] * t;
@@ -37,8 +42,9 @@ function toLatLon({ origin, u, v }, s, t) {
   return [r6(origin[0] + north / M_LAT), r6(origin[1] + east / mLon)];
 }
 
-// plotsSpec: [{ id, name, contractor, care, batches: [..], cause, lat, lon }]
-// cause — истинная причина гибели на участке (для оценки), care — как поливали.
+// plotsSpec: [{ id, name, contractor, care, batches: [..], lat, lon }], care — как поливали.
+// Вместо lat/lon участок может нести layout { polygon, label, points }: готовый контур
+// и точки саженцев (так размечен демо-бульвар, см. scripts/layout-from-imagery.py).
 export function buildDistrict(r, { start, end, heatwave, plotsSpec, treesPerPlot = 12, badBatches = [], districtName = 'Демо-район' }) {
   const weather = makeWeather(r, start, end, heatwave);
   const plots = [];
@@ -55,16 +61,18 @@ export function buildDistrict(r, { start, end, heatwave, plotsSpec, treesPerPlot
     const at = (s, t) => toLatLon(frame, s, t);
     const [s0, s1] = frame.along;
     const [t0, t1] = frame.across;
-    const polygon = [at(s0, t0), at(s1, t0), at(s1, t1), at(s0, t1)];
+    const lay = spec.layout;
+    const polygon = lay ? lay.polygon : [at(s0, t0), at(s1, t0), at(s1, t1), at(s0, t1)];
+    const n = lay ? lay.points.length : treesPerPlot;
     plots.push({
       id: spec.id,
       name: spec.name,
       contractor: spec.contractor,
       sensor: `S${String(pi + 1).padStart(2, '0')}`,
       polygon,
-      center: at((s0 + s1) / 2, (t0 + t1) / 2),
+      center: lay ? centroid(lay.points) : at((s0 + s1) / 2, (t0 + t1) / 2),
       // Подпись ставим снаружи участка, с дальней от оси бульвара стороны.
-      label: t0 >= 0 ? at((s0 + s1) / 2, t1 + 14) : at((s0 + s1) / 2, t0 - 14),
+      label: lay ? lay.label : t0 >= 0 ? at((s0 + s1) / 2, t1 + 14) : at((s0 + s1) / 2, t0 - 14),
     });
     const sim = simulatePlot(r, weather, start, end, spec.care);
     series.moisture[spec.id] = sim.moisture;
@@ -72,7 +80,7 @@ export function buildDistrict(r, { start, end, heatwave, plotsSpec, treesPerPlot
     series.ndvi[spec.id] = sim.ndvi;
     const planted = addDays(start, r.int(0, 6));
 
-    for (let i = 0; i < treesPerPlot; i++) {
+    for (let i = 0; i < n; i++) {
       const row = i % 2;
       const col = Math.floor(i / 2);
       const batch = spec.batches[i % spec.batches.length];
@@ -84,6 +92,7 @@ export function buildDistrict(r, { start, end, heatwave, plotsSpec, treesPerPlot
         planted,
         warranty: addDays(planted, 730),
         ...(() => {
+          if (lay) return { lat: lay.points[i][0], lon: lay.points[i][1] };
           const s = s0 + ((s1 - s0) * (col + 0.5)) / (treesPerPlot / 2) + r.normal() * 0.8;
           const t = t0 + (t1 - t0) * (0.3 + 0.4 * row) + r.normal() * 0.8;
           const [lat, lon] = at(s, t);
