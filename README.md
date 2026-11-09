@@ -1,135 +1,135 @@
-# Tamyr: доказательство, что дерево выжило
+# Tamyr: Proof That the Tree Survived
 
-**VENTUREHACK 2026 · Трек 3 · Open Innovation**
-Направления: устойчивое развитие, общественные и городские сервисы.
+**VENTUREHACK 2026 · Track 3 · Open Innovation**
+Focus areas: sustainable development, public and urban services.
 
-Tamyr связывает каждый высаженный в городе саженец с датчиком влажности почвы, снимком со спутника и фото горожанина. Если саженец погиб, система называет причину (засуха, невыполненный полив или плохой посадочный материал) и того, кто за неё отвечает, и показывает доказательства.
+Tamyr links every sapling planted in the city to a soil moisture sensor, a satellite image, and a photo from a resident. If a sapling dies, the system names the cause (drought, missed watering, or poor planting stock) and the party responsible, and shows the evidence.
 
-**Демо:** https://yarmolenko08diana.github.io/tamyr/
+**Demo:** https://yarmolenko08diana.github.io/tamyr/
 
-## Проблема
+## Problem
 
-- В городской среде Казахстана гибнет **50–70% саженцев**, фактическая приживаемость около 50% при нормативе 60% (Мажилис РК, 21.05.2026).
-- Среди причин правительство называет «отсутствие мониторинга состояния насаждений».
-- Модель «платить подрядчику за выжившие деревья» рассматривали и отклонили, потому что **невозможно установить причину гибели дерева** (ответ первого вице-премьера, июнь 2026).
-- Итог: одни и те же территории озеленяют повторно за бюджетные деньги (16,84 млрд ₸ на благоустройство и озеленение Астаны).
+- In Kazakhstan's urban environments, **50–70% of saplings die**. The actual survival rate is about 50%, against a standard of 60% (Mazhilis of the Republic of Kazakhstan, 21.05.2026).
+- Among the causes, the government cites "lack of monitoring of plantings."
+- The model of "paying contractors for surviving trees" was considered and rejected, because **it is impossible to determine why a tree died** (answer from the First Deputy Prime Minister, June 2026).
+- As a result, the same areas are replanted with budget money (16.84 billion ₸ for landscaping and greening in Astana).
 
-## Решение
+## Solution
 
-Ни один источник по отдельности причину не доказывает, поэтому Tamyr сводит три независимых:
+No single source proves the cause, so Tamyr combines three independent ones:
 
-| Источник | Что говорит | Слепая зона |
+| Source | What it tells us | Blind spot |
 |---|---|---|
-| Датчик влажности почвы | Сохла ли почва, был ли скачок влажности после отчёта о поливе | Не видит, стоит ли дерево |
-| Спутник Sentinel-2 (NDVI) | Теряет ли участок зелень | Не видит отдельный саженец |
-| Фото горожанина и обхода | Жив ли конкретный саженец | Одно фото легко подделать |
+| Soil moisture sensor | Whether the soil was drying out, and whether moisture jumped after a watering report | Cannot see whether the tree is standing |
+| Sentinel-2 satellite (NDVI) | Whether the area is losing greenery | Cannot see an individual sapling |
+| Resident photo and site inspection | Whether a specific sapling is alive | A single photo is easy to fake |
 
-Движок смотрит на **последовательность событий** за 35 дней до гибели и выбирает причину:
+The engine examines the **sequence of events** over the 35 days before death and selects the cause:
 
-- **Невыполненный полив:** подрядчик отчитался о поливе, но датчик не видит скачка влажности, почва сохла. Ответственный: подрядчик, стоимость восстановления удерживается по гарантии.
-- **Засуха:** поливы подтверждены датчиком, но жара высушивала почву быстрее графика. Подрядчик не виноват, нужно учащать полив.
-- **Плохой посадочный материал:** почва влажная, саженец погиб молодым, его партия гибнет чаще среднего на разных участках. Ответственный: питомник.
-- **Недостаточно данных:** если ни одна гипотеза не набирает уверенности, система так и говорит.
+- **Missed watering:** the contractor reported watering, but the sensor shows no moisture jump and the soil was drying out. Responsible party: the contractor; the replacement cost is withheld under the warranty.
+- **Drought:** watering is confirmed by the sensor, but the heat dried the soil faster than the schedule allowed. The contractor is not at fault; watering frequency needs to increase.
+- **Poor planting stock:** the soil is moist, yet the sapling died young, and its batch dies more often than average across different sites. Responsible party: the nursery.
+- **Insufficient data:** if no hypothesis reaches sufficient confidence, the system says so.
 
-## Что работает в MVP
+## What Works in the MVP
 
-- **Карта бульвара Нуржол** (демо-участки между Хан Шатыром и Байтереком): подложка «Схема» или «Спутник», саженцы цветом по причине гибели, участки цветом по NDVI, фильтры по статусу и подрядчику, поиск саженца.
-- **Шкала времени:** проигрывание сезона по дням, карта, сводка и наряды пересчитываются на выбранную дату.
-- **Карточка участка:** влажность, NDVI, заявленные и подтверждённые поливы, все саженцы участка.
-- **Паспорт саженца с QR:** вид, партия, питомник, подрядчик, гарантия, график влажности с поливами, NDVI, фото, история событий. QR открывает паспорт на телефоне.
-- **Движок причины** с уверенностью и списком фактов, подсвеченных в пользу вывода.
-- **Проверка фото горожанина:** GPS из EXIF (не дальше 40 м от саженца), дата съёмки (не старше 7 дней), повторы (SHA-256), анализ зелени по пикселям (индекс ExG). Непрошедшее фото сохраняется, но не меняет статус.
-- **Автонаряд на полив:** участки, где почва сухая 2 из 3 последних дней.
-- **Акт для акимата** с фильтром по подрядчику, расчётом суммы к удержанию и сохранением в PDF.
-- **Импорт CSV датчика:** так подключается ESP32 из папки `firmware/`.
+- **Nurzhol Boulevard map** (demo sites between Khan Shatyr and Baiterek): "Scheme" or "Satellite" base layer, saplings colored by cause of death, sites colored by NDVI, filters by status and contractor, sapling search.
+- **Timeline:** playback of the season day by day; the map, summary, and work orders recalculate for the selected date.
+- **Site card:** moisture, NDVI, reported and confirmed waterings, all saplings on the site.
+- **Sapling passport with QR code:** species, batch, nursery, contractor, warranty, moisture chart with waterings, NDVI, photos, event history. The QR code opens the passport on a phone.
+- **Cause engine** with confidence level and a list of facts that support the conclusion, highlighted.
+- **Resident photo verification:** GPS from EXIF (no more than 40 m from the sapling), capture date (no older than 7 days), duplicates (SHA-256), pixel-based greenery analysis (ExG index). Photos that fail are saved but do not change the status.
+- **Automatic watering work order:** sites where the soil was dry 2 of the last 3 days.
+- **Report for the akimat:** filter by contractor, calculation of the amount to withhold, and saving as PDF.
+- **Sensor CSV import:** how the ESP32 is connected, from the `firmware/` folder.
 
-## Точность движка
+## Engine Accuracy
 
-`npm run eval` прогоняет 30 сценариев (по 10 на каждую причину) с заранее известной причиной и разной погодой:
-**29 из 30 сценариев верно, 299 из 314 саженцев верно.** Полная таблица и матрица ошибок: [docs/engine-accuracy.md](docs/engine-accuracy.md).
+`npm run eval` runs 30 scenarios (10 for each cause) with a known cause in advance and varying weather:
+**29 of 30 scenarios correct, 299 of 314 saplings correct.** The full table and error matrix: [docs/engine-accuracy.md](docs/engine-accuracy.md).
 
-Это проверка логики на модели, а не на реальных деревьях. Реальную точность покажет пилот, где причину подтверждает дендролог.
+This verifies the logic on a model, not on real trees. Real accuracy will be shown by a pilot in which a dendrologist confirms the cause.
 
-## Архитектура
+## Architecture
 
 ```
- ESP32 + датчик ──CSV──┐
- Sentinel-2 (GEE) ─CSV─┤                   ┌──────────── браузер ────────────┐
- Open-Meteo ───────────┼─► data/*.json ──► │ engine.js  → причина, уверенность│
- фото горожанина ──────┘                   │ photo.js   → проверка фото       │
-                                           │ app.js     → карта, паспорт, QR  │
-                                           │ report.js  → акт в PDF           │
+ ESP32 + sensor ──CSV──┐
+ Sentinel-2 (GEE) ─CSV─┤                   ┌──────────── browser ────────────┐
+ Open-Meteo ───────────┼─► data/*.json ──► │ engine.js  → cause, confidence   │
+ resident photos ──────┘                   │ photo.js   → photo verification  │
+                                           │ app.js     → map, passport, QR   │
+                                           │ report.js  → report as PDF       │
                                            └──────────────────────────────────┘
 ```
 
-Всё работает в браузере без сервера, поэтому MVP бесплатно разворачивается на GitHub Pages. Движок (`js/engine.js`) не зависит от браузера и тот же код проверяется тестами в Node.
+Everything runs in the browser without a server, so the MVP can be deployed free on GitHub Pages. The engine (`js/engine.js`) does not depend on the browser, and the same code is verified by tests in Node.
 
-### Что разработано командой, а что взято готовым (п. 5.3 Положения)
+### What the team built and what was taken ready-made (section 5.3 of the Regulations)
 
-| Разработано командой | Взято готовым |
+| Developed by the team | Taken ready-made |
 |---|---|
-| Модель данных: паспорт саженца, участки, партии, лента событий | [Leaflet](https://leafletjs.com) — карта; OpenStreetMap / CARTO — схема |
-| Движок причины гибели: проверка поливов по датчику, гипотезы, уверенность, доказательства (`js/engine.js`) | Esri World Imagery — спутниковая подложка |
-| Проверка фото: расстояние, дата, повторы, индекс зелени ExG (`js/photo.js`) | [exifr](https://github.com/MikeKovarik/exifr) — чтение EXIF из фото |
-| Симулятор района и 30 тест-сценариев (`scripts/sim.mjs`, `scripts/eval-engine.mjs`) | [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) — QR-коды |
-| Интерфейс: карта, паспорт, графики SVG, акт (`js/app.js`, `js/charts.js`, `js/report.js`) | Sentinel-2 (Copernicus) через Google Earth Engine — спутниковые снимки |
-| Прошивка ESP32 (`firmware/`) | Open-Meteo — архив погоды |
-| Разметка посадок по спутниковому снимку (`scripts/layout-from-imagery.py`) | numpy, SciPy, Pillow — только в скрипте разметки |
+| Data model: sapling passport, sites, batches, event feed | [Leaflet](https://leafletjs.com) — map; OpenStreetMap / CARTO — scheme view |
+| Engine for the cause of death: checking waterings against the sensor, hypotheses, confidence, evidence (`js/engine.js`) | Esri World Imagery — satellite base layer |
+| Photo verification: distance, date, duplicates, ExG greenery index (`js/photo.js`) | [exifr](https://github.com/MikeKovarik/exifr) — reading EXIF from photos |
+| District simulator and 30 test scenarios (`scripts/sim.mjs`, `scripts/eval-engine.mjs`) | [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) — QR codes |
+| Interface: map, passport, SVG charts, report (`js/app.js`, `js/charts.js`, `js/report.js`) | Sentinel-2 (Copernicus) via Google Earth Engine — satellite imagery |
+| ESP32 firmware (`firmware/`) | Open-Meteo — weather archive |
+| Planting layout from satellite imagery (`scripts/layout-from-imagery.py`) | numpy, SciPy, Pillow — only in the layout script |
 
-Библиотеки лежат в `vendor/` с лицензиями, чтобы приложение работало без внешних CDN. При разработке использовались инструменты ИИ, это допускается п. 5.3.
+The libraries are stored in `vendor/` with their licenses, so the application works without external CDNs. AI tools were used in development, as permitted by section 5.3.
 
-## Данные: честно
+## Data: Honestly
 
-Сейчас приложение работает на **демо-данных**, их генерирует симулятор района (`scripts/generate-demo-data.mjs`, seed 2026): 8 участков на бульваре Нуржол к востоку от Хан Шатыра, 336 саженцев, сезон 20 апреля — 20 сентября 2026 года, волна жары в июле. В интерфейсе это отмечено плашкой «Демо-данные». Подрядчики и питомники условные.
+Right now the application runs on **demo data**, generated by the district simulator (`scripts/generate-demo-data.mjs`, seed 2026): 8 sites on Nurzhol Boulevard east of Khan Shatyr, 336 saplings, a season from April 20 to September 20, 2026, with a heatwave in July. The interface labels this with a "Demo data" banner. The contractors and nurseries are fictional.
 
-Точки саженцев размечены по спутниковому снимку (`scripts/layout-from-imagery.py` → `data/nurzhol-layout.json`): контуры участков нарисованы вручную по зелёным зонам бульвара, точки ставятся преимущественно на кроны, видимые на снимке, не ближе ~8 м друг к другу. Какие именно деревья «наши» и их судьба — условны.
+Sapling locations were marked from satellite imagery (`scripts/layout-from-imagery.py` → `data/nurzhol-layout.json`): site outlines were drawn by hand along the boulevard's green areas, and points are placed mainly on crowns visible in the image, no closer than about 8 m to each other. Which specific trees are "ours" and their fate are fictional.
 
-Реальные данные подключаются так:
+Real data is connected as follows:
 
 ```bash
-node scripts/fetch-weather.mjs              # реальная погода Астаны из Open-Meteo
-node scripts/import-ndvi.mjs ndvi.csv       # NDVI участков из Google Earth Engine (docs/gee-ndvi.js)
-# CSV датчика ESP32 загружается кнопкой «Импорт CSV датчика» в интерфейсе
+node scripts/fetch-weather.mjs              # real Astana weather from Open-Meteo
+node scripts/import-ndvi.mjs ndvi.csv       # site NDVI from Google Earth Engine (docs/gee-ndvi.js)
+# ESP32 sensor CSV is uploaded with the "Import sensor CSV" button in the interface
 ```
 
-## Запуск
+## Running
 
-Нужен Node.js 18+. Зависимостей нет.
+Requires Node.js 18+. No dependencies.
 
 ```bash
 npm start          # http://localhost:8080
-npm test           # 13 тестов движка и проверки фото
-npm run eval       # точность движка на 30 сценариях → docs/engine-accuracy.md
-npm run data       # пересобрать демо-данные
+npm test           # 13 engine and photo verification tests
+npm run eval       # engine accuracy on 30 scenarios → docs/engine-accuracy.md
+npm run data       # regenerate demo data
 ```
 
-Открывать `index.html` двойным кликом нельзя: браузер не даст загрузить JSON. Нужен `npm start` или любой статический сервер.
+You cannot open `index.html` by double-clicking: the browser will not load the JSON. Use `npm start` or any static server.
 
-## Деплой
+## Deployment
 
-1. Залейте репозиторий на GitHub.
+1. Push the repository to GitHub.
 2. Settings → Pages → Source: **GitHub Actions**.
-3. Workflow `.github/workflows/pages.yml` прогонит тесты и опубликует сайт при каждом пуше в `main`.
+3. The workflow `.github/workflows/pages.yml` runs the tests and publishes the site on every push to `main`.
 
-## Структура
+## Structure
 
 ```
-index.html, css/, js/        приложение
-  js/engine.js               движок причины гибели
-  js/photo.js                проверка фото горожанина
-data/                        демо-данные (district.json, series.json)
-scripts/                     симулятор, оценка точности, импорт реальных данных, сервер
-test/                        тесты (node --test)
-firmware/                    прошивка ESP32 для датчика влажности
-docs/                        точность движка, опрос, интервью, сценарий демо
+index.html, css/, js/        application
+  js/engine.js               engine for the cause of death
+  js/photo.js                resident photo verification
+data/                        demo data (district.json, series.json)
+scripts/                     simulator, accuracy evaluation, real data import, server
+test/                        tests (node --test)
+firmware/                    ESP32 firmware for the moisture sensor
+docs/                        engine accuracy, survey, interviews, demo script
 vendor/                      Leaflet, exifr, qrcode-generator
 ```
 
-## Команда
+## Team
 
-| Участник | Роль |
+| Member | Role |
 |---|---|
-| Молдагали Жасмина Мейрманкызы | Backend и движок |
-| Молдагали Жасмина Мейрманкызы | Data и ML |
-| Ярмоленко Диана Дмитриевна | Frontend |
-| Ярмоленко Диана Дмитриевна | Питч и валидация |
+| Moldagali Zhasmina Meirmankyzy | Backend and engine |
+| Moldagali Zhasmina Meirmankyzy | Data and ML |
+| Yarmolenko Diana Dmitrievna | Frontend |
+| Yarmolenko Diana Dmitrievna | Pitch and validation |
